@@ -5,7 +5,7 @@ import torch
 from pytorch_lightning import LightningDataModule
 from pytorch_lightning.utilities import rank_zero_only, rank_zero_warn
 from torch_geometric.loader import DataLoader
-from torch_scatter import scatter
+from e3tools import scatter
 from tqdm import tqdm
 
 from gotennet import utils
@@ -19,10 +19,10 @@ log = utils.get_logger(__name__)
 def normalize_positions(batch):
     """
     Normalize positions by subtracting center of mass.
-    
+
     Args:
         batch: Data batch with position information.
-        
+
     Returns:
         batch: Batch with normalized positions.
     """
@@ -34,7 +34,7 @@ def normalize_positions(batch):
 class DataModule(LightningDataModule):
     """
     DataModule for handling various molecular datasets.
-    
+
     This class provides a unified interface for loading, splitting, and
     standardizing different types of molecular datasets.
     """
@@ -42,7 +42,7 @@ class DataModule(LightningDataModule):
     def __init__(self, hparams: Union[Dict, Any]):
         """
         Initialize the DataModule with configuration parameters.
-        
+
         Args:
             hparams: Hyperparameters for the datamodule.
         """
@@ -67,10 +67,10 @@ class DataModule(LightningDataModule):
     def get_metadata(self, label: Optional[str] = None) -> Dict:
         """
         Get metadata about the dataset.
-        
+
         Args:
             label: Optional label to set as dataset_arg.
-            
+
         Returns:
             Dict containing dataset metadata.
         """
@@ -91,10 +91,10 @@ class DataModule(LightningDataModule):
     def prepare_dataset(self):
         """
         Prepare the dataset for training, validation, and testing.
-        
+
         Loads the appropriate dataset based on the configuration and
         creates the train/val/test splits.
-        
+
         Raises:
             AssertionError: If the specified dataset type is not supported.
         """
@@ -122,7 +122,7 @@ class DataModule(LightningDataModule):
     def train_dataloader(self):
         """
         Get the training dataloader.
-        
+
         Returns:
             DataLoader for training data.
         """
@@ -131,7 +131,7 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         """
         Get the validation dataloader.
-        
+
         Returns:
             DataLoader for validation data.
         """
@@ -140,7 +140,7 @@ class DataModule(LightningDataModule):
     def test_dataloader(self):
         """
         Get the test dataloader.
-        
+
         Returns:
             DataLoader for test data.
         """
@@ -150,7 +150,7 @@ class DataModule(LightningDataModule):
     def atomref(self):
         """
         Get atom reference values if available.
-        
+
         Returns:
             Atom reference values or None.
         """
@@ -162,7 +162,7 @@ class DataModule(LightningDataModule):
     def mean(self):
         """
         Get mean value for standardization.
-        
+
         Returns:
             Mean value.
         """
@@ -172,7 +172,7 @@ class DataModule(LightningDataModule):
     def std(self):
         """
         Get standard deviation value for standardization.
-        
+
         Returns:
             Standard deviation value.
         """
@@ -186,12 +186,12 @@ class DataModule(LightningDataModule):
     ):
         """
         Create a dataloader for the given dataset and stage.
-        
+
         Args:
             dataset: The dataset to create a dataloader for.
             stage: The stage ('train', 'val', or 'test').
             store_dataloader: Whether to store the dataloader for reuse.
-            
+
         Returns:
             DataLoader for the dataset.
         """
@@ -222,7 +222,7 @@ class DataModule(LightningDataModule):
     def _standardize(self):
         """
         Standardize the dataset by computing mean and standard deviation.
-        
+
         This method computes the mean and standard deviation of the dataset
         for standardization purposes. It handles different standardization
         approaches based on the configuration.
@@ -270,9 +270,9 @@ class DataModule(LightningDataModule):
     def _prepare_QM9(self):
         """
         Load and prepare the QM9 dataset with appropriate splits.
-        
+
         Returns:
-            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: 
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
                 Indices for train, validation, and test splits.
         """
         # Apply position normalization if requested

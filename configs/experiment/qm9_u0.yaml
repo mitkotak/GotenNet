@@ -23,7 +23,7 @@ model:
   task_config:
     task_loss: "MSELoss"
   representation:
-    n_interactions: 4
+    n_interactions: 6
     n_atom_basis: 256
     radial_basis: "expnorm"
     n_rbf: 64

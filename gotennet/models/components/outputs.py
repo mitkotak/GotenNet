@@ -3,10 +3,9 @@ from typing import Optional, Union
 import ase
 import torch
 import torch.nn.functional as F
-import torch_scatter
 from torch import nn
 from torch.autograd import grad
-from torch_geometric.utils import scatter
+from e3tools import scatter
 
 from gotennet.models.components.layers import (
     Dense,
@@ -39,7 +38,7 @@ class GatedEquivariantBlock(nn.Module):
     ):
         """
         Initialize the GatedEquivariantBlock.
-        
+
         Args:
             n_sin (int): Input dimension of scalar features.
             n_vin (int): Input dimension of vectorial features.
@@ -67,11 +66,11 @@ class GatedEquivariantBlock(nn.Module):
     def forward(self, scalars: torch.Tensor, vectors: torch.Tensor):
         """
         Forward pass of the GatedEquivariantBlock.
-        
+
         Args:
             scalars (torch.Tensor): Scalar input features.
             vectors (torch.Tensor): Vector input features.
-            
+
         Returns:
             tuple: Tuple containing:
                 - torch.Tensor: Output scalar features.
@@ -120,7 +119,7 @@ class AtomwiseV3(nn.Module):
     ):
         """
         Initialize the AtomwiseV3 module.
-        
+
         Args:
             n_in (int): Input dimension of atomwise features.
             n_out (int): Output dimension of target property.
@@ -186,10 +185,10 @@ class AtomwiseV3(nn.Module):
     def forward(self, inputs):
         """
         Predicts atomwise property.
-        
+
         Args:
             inputs: Input data containing atomic representations.
-            
+
         Returns:
             dict: Dictionary with predicted properties.
         """
@@ -203,7 +202,7 @@ class AtomwiseV3(nn.Module):
             yi = yi + y0
 
         if self.aggregation_mode is not None:
-            y = torch_scatter.scatter(yi, inputs.batch, dim=0, reduce=self.aggregation_mode)
+            y = scatter(yi, inputs.batch, dim=0)
         else:
             y = yi
 
@@ -233,7 +232,7 @@ class Atomwise(nn.Module):
     """
     Atomwise prediction module for predicting atomic properties.
     """
-    
+
     def __init__(
         self,
         n_in: int,
@@ -256,7 +255,7 @@ class Atomwise(nn.Module):
     ):
         """
         Initialize the Atomwise module.
-        
+
         Args:
             n_in (int): Input dimension of atomwise features.
             n_out (int): Output dimension of target property.
@@ -286,7 +285,7 @@ class Atomwise(nn.Module):
         self.derivative = derivative
         self.negative_dr = negative_dr
         self.standardize = standardize
-        
+
         mean = torch.FloatTensor([0.0]) if mean is None else mean
         stddev = torch.FloatTensor([1.0]) if stddev is None else stddev
 
@@ -323,16 +322,16 @@ class Atomwise(nn.Module):
     def forward(self, inputs):
         """
         Predicts atomwise property.
-        
+
         Args:
             inputs: Input data containing atomic representations.
-            
+
         Returns:
             dict: Dictionary with predicted properties.
         """
         atomic_numbers = inputs.z
         result = {}
-        
+
         if self.equivariant:
             l0 = inputs.representation
             l1 = inputs.vector_representation
@@ -352,7 +351,7 @@ class Atomwise(nn.Module):
 
 
         if self.aggregation_mode is not None:
-            y = torch_scatter.scatter(yi, inputs.batch, dim=0, reduce=self.aggregation_mode)
+            y = scatter(yi, inputs.batch, dim=0, reduce=self.aggregation_mode)
         else:
             y = yi
 
@@ -392,7 +391,7 @@ class Dipole(nn.Module):
     ):
         """
         Initialize the Dipole module.
-        
+
         Args:
             n_in (int): Input dimension of atomwise features.
             n_hidden (Optional[int]): Size of hidden layers.
@@ -430,10 +429,10 @@ class Dipole(nn.Module):
     def forward(self, inputs):
         """
         Predicts dipole moment.
-        
+
         Args:
             inputs: Input data containing atomic representations.
-            
+
         Returns:
             dict: Dictionary with predicted dipole properties.
         """
@@ -454,9 +453,9 @@ class Dipole(nn.Module):
 
         y = atomic_dipoles + dipole_offsets
         # y = torch.sum(y, dim=1)
-        y = torch_scatter.scatter(y, inputs.batch, dim=0, reduce=self.aggregation_mode)
+        y = scatter(y, inputs.batch, dim=0, reduce=self.aggregation_mode)
         if self.output_v:
-            y_vector = torch_scatter.scatter(l1, inputs.batch, dim=0, reduce=self.aggregation_mode)
+            y_vector = scatter(l1, inputs.batch, dim=0, reduce=self.aggregation_mode)
 
 
         if self.predict_magnitude:
@@ -470,7 +469,7 @@ class Dipole(nn.Module):
 
 class ElectronicSpatialExtentV2(Atomwise):
     """Electronic spatial extent prediction module."""
-    
+
     def __init__(
         self,
         n_in: int,
@@ -485,7 +484,7 @@ class ElectronicSpatialExtentV2(Atomwise):
     ):
         """
         Initialize the ElectronicSpatialExtentV2 module.
-        
+
         Args:
             n_in (int): Input dimension of atomwise features.
             n_layers (int): Number of layers in the output network.
@@ -516,10 +515,10 @@ class ElectronicSpatialExtentV2(Atomwise):
     def forward(self, inputs):
         """
         Predicts the electronic spatial extent.
-        
+
         Args:
             inputs: Input data containing atomic representations and positions.
-            
+
         Returns:
             dict: Dictionary with predicted electronic spatial extent properties.
         """
@@ -531,7 +530,7 @@ class ElectronicSpatialExtentV2(Atomwise):
         yi = torch.norm(positions - c[inputs.batch], dim=1, keepdim=True)
         yi = yi ** 2 * x
 
-        y = torch_scatter.scatter(yi, inputs.batch, dim=0, reduce=self.aggregation_mode)
+        y = scatter(yi, inputs.batch, dim=0, reduce=self.aggregation_mode)
 
         # collect results
         result = {self.property: y}

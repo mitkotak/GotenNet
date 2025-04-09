@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch import nn as nn
 from torch.nn.init import constant_, xavier_uniform_
-from torch_cluster import radius_graph
+from e3tools import radius_graph
 from torch_geometric.nn import MessagePassing
 from torch_geometric.nn.inits import glorot_orthogonal
 
@@ -1587,7 +1587,7 @@ class Distance(nn.Module):
 
     def forward(self, pos, batch):
         edge_index = radius_graph(pos, r=self.cutoff, batch=batch, loop=self.loop,
-                                  max_num_neighbors=self.max_num_neighbors)
+                                  chunk_size=self.max_num_neighbors)
         if self.direction == "source_to_target":
             # keep as is
             edge_vec = pos[edge_index[0]] - pos[edge_index[1]]

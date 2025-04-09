@@ -10,7 +10,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch_geometric.nn import MessagePassing
 from torch_geometric.typing import OptTensor
-from torch_geometric.utils import scatter, softmax
+from torch_geometric.utils import softmax
+from e3tools import scatter
 
 # Local application/library specific imports
 import gotennet.utils as utils
@@ -37,10 +38,10 @@ num_nodes = hidden_dims = 1
 def get_split_sizes_from_lmax(lmax: int, start: int = 1) -> List[int]:
     """
     Return split sizes for torch.split based on lmax.
-    
+
     This function calculates the dimensions of spherical harmonic components
     for each angular momentum value from start to lmax.
-    
+
     Args:
         lmax: Maximum angular momentum value
         start: Starting angular momentum value (default: 1)
@@ -54,10 +55,10 @@ def get_split_sizes_from_lmax(lmax: int, start: int = 1) -> List[int]:
 def split_to_components(tensor: Tensor, lmax: int, start: int = 1, dim: int = -1) -> List[Tensor]:
     """
     Split a tensor into its spherical harmonic components.
-    
+
     This function splits a tensor containing concatenated spherical harmonic components
     into a list of separate tensors, each corresponding to a specific angular momentum.
-    
+
     Args:
         tensor: The tensor to split [*, sum(2l+1 for l in range(start, lmax+1)), *]
         lmax: Maximum angular momentum value
@@ -96,10 +97,10 @@ class GATA(MessagePassing):
         sep_dir: bool = True,
         sep_tensor: bool = True,
         lmax: int = 2
-    ): 
+    ):
         """
         Graph Attention Transformer Architecture.
-        
+
         Args:
             n_atom_basis: Number of features to describe atomic environments.
             activation: Activation function to be used. If None, no activation function is used.
@@ -328,11 +329,11 @@ class GATA(MessagePassing):
     def vector_rejection(rep: Tensor, rl_ij: Tensor) -> Tensor:
         """
         Compute the vector rejection of vec onto rl_ij.
-        
+
         Args:
             rep: Input tensor representation [num_edges, (L_max ** 2) - 1, hidden_dims]
             rl_ij: High-degree steerable feature tensor [num_edges, (L_max ** 2) - 1, 1]
-            
+
         Returns:
             The component of vec orthogonal to rl_ij
         """
@@ -442,10 +443,10 @@ class GATA(MessagePassing):
     ) -> Tuple[Tensor, Tensor]:
         """
         Compute messages from source nodes to target nodes.
-        
+
         This method implements the message passing mechanism for the GATA layer,
         combining attention-based and spatial filtering approaches.
-        
+
         Args:
             edge_index: Edge connectivity tensor [2, num_edges]
             x_j: Source node features [num_edges, 1, hidden_dims]
@@ -533,17 +534,17 @@ class GATA(MessagePassing):
     ) -> Tensor:
         """
         Update edge features based on node features.
-        
+
         This method computes updates to edge features by combining information from
         source and target nodes' high-degree steerable features, potentially applying
         vector rejection.
-        
+
         Args:
             EQ_i: Source node high-degree steerable features [num_edges, (L_max ** 2) - 1, hidden_dims]
             EK_j: Target node high-degree steerable features [num_edges, (L_max ** 2) - 1, hidden_dims]
             rl_ij: Edge tensor representation [num_edges, (L_max ** 2) - 1, 1]
             t_ij: Edge scalar features [num_edges, 1, hidden_dims]
-            
+
         Returns:
             Updated edge features [num_edges, 1, hidden_dims]
         """
@@ -589,24 +590,24 @@ class GATA(MessagePassing):
     ) -> Tuple[Tensor, Tensor]:
         """
         Aggregate messages from source nodes to target nodes.
-        
+
         This method implements the aggregation step of message passing, combining
         messages from neighboring nodes according to the specified aggregation method.
-        
+
         Args:
             features: Tuple of scalar and vector features (h, X)
             index: Index tensor for scatter operation
             ptr: Pointer tensor for scatter operation
             dim_size: Dimension size for scatter operation
-            
+
         Returns:
             Tuple containing:
                 - Aggregated scalar features [num_nodes, 1, hidden_dims]
                 - Aggregated high-degree steerable features [num_nodes, (L_max ** 2) - 1, hidden_dims]
         """
         h, X = features
-        h = scatter(h, index, dim=self.node_dim, dim_size=dim_size, reduce=self.aggr)
-        X = scatter(X, index, dim=self.node_dim, dim_size=dim_size, reduce=self.aggr)
+        h = scatter(h, index, dim=self.node_dim, dim_size=dim_size)
+        X = scatter(X, index, dim=self.node_dim, dim_size=dim_size)
         return h, X
 
     def update(
@@ -615,13 +616,13 @@ class GATA(MessagePassing):
     ) -> Tuple[Tensor, Tensor]:
         """
         Update node features with aggregated messages.
-        
+
         This method implements the update step of message passing. In this implementation,
         it simply passes through the aggregated features without additional processing.
-        
+
         Args:
             inputs: Tuple of aggregated scalar and high-degree steerable features
-            
+
         Returns:
             Tuple containing:
                 - Updated scalar features [num_nodes, 1, hidden_dims]
@@ -633,11 +634,11 @@ class GATA(MessagePassing):
 class EQFF(nn.Module):
     """
     Equivariant Feed-Forward (EQFF) Network for mixing atom features.
-    
+
     This module facilitates efficient channel-wise interaction while maintaining equivariance.
     It separates scalar and high-degree steerable features, allowing for specialized processing
     of each feature type before combining them with non-linear mappings as described in the paper:
-    
+
     EQFF(h, X^(l)) = (h + m_1, X^(l) + m_2 * (X^(l)W_{vu}))
     where m_1, m_2 = split_2(gamma_{m}(||X^(l)W_{vu}||_2, h))
     """
@@ -653,7 +654,7 @@ class EQFF(nn.Module):
     ):
         """
         Initialize EQFF module.
-        
+
         Args:
             n_atom_basis: Number of features to describe atomic environments.
             activation: Activation function. If None, no activation function is used.
@@ -727,14 +728,14 @@ class EQFF(nn.Module):
 class GotenNet(nn.Module):
     """
     Graph Attention Transformer Network for atomic systems.
-    
+
     GotenNet processes and updates two types of node features (invariant and steerable)
     and edge features (invariant) through three main mechanisms:
-    
-    1. GATA (Graph Attention Transformer Architecture): A degree-wise attention-based 
-       message passing layer that updates both invariant and steerable features while 
+
+    1. GATA (Graph Attention Transformer Architecture): A degree-wise attention-based
+       message passing layer that updates both invariant and steerable features while
        preserving equivariance.
-    2. HTR (Hierarchical Tensor Refinement): Updates edge features across degrees with 
+    2. HTR (Hierarchical Tensor Refinement): Updates edge features across degrees with
        inner products of steerable features.
     3. EQFF (Equivariant Feed-Forward): Further processes both types of node features
        while maintaining equivariance.
@@ -768,7 +769,7 @@ class GotenNet(nn.Module):
     ):
         """
         Initialize GotenNet model.
-        
+
         Args:
             n_atom_basis: Number of features to describe atomic environments.
                 This determines the size of each embedding vector; i.e. embeddings_dim.
@@ -860,13 +861,13 @@ class GotenNet(nn.Module):
     def forward(self, atomic_numbers, edge_index, edge_diff, edge_vec) -> Tuple[Tensor, Tensor]:
         """
         Compute atomic representations/embeddings.
-        
+
         Args:
             atomic_numbers: Tensor of atomic numbers [num_nodes]
             edge_index: Tensor describing graph connectivity [2, num_edges]
             edge_diff: Tensor of edge distances [num_edges, 1]
             edge_vec: Tensor of edge direction vectors [num_edges, 3]
-            
+
         Returns:
             Tuple containing:
                 - Atomic representation [num_nodes, hidden_dims]
@@ -902,12 +903,12 @@ class GotenNet(nn.Module):
 
 class GotenNetWrapper(GotenNet):
     """
-    The wrapper around GotenNet for processing atomistic data. 
+    The wrapper around GotenNet for processing atomistic data.
     """
 
     def __init__(
         self,
-        *args, 
+        *args,
         max_num_neighbors=32,
         **kwargs
     ):
@@ -922,7 +923,7 @@ class GotenNetWrapper(GotenNet):
         Compute atomic representations/embeddings.
 
         Args:
-            inputs: Dictionary of input tensors containing atomic_numbers, pos, batch, 
+            inputs: Dictionary of input tensors containing atomic_numbers, pos, batch,
                 edge_index, r_ij, and dir_ij. Shape information:
                 - atomic_numbers: [num_nodes]
                 - pos: [num_nodes, 3]
